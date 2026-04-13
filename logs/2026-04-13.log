@@ -1,0 +1,19 @@
+2026/04/13 23:43:19 main.go:523: [INFO] Config loaded: &{MySQL:{Host:127.0.0.1 Port:13308 User:sync_user Password:sync_password_123 ServerID:1001 Flavor:mysql} ClickHouse:{Host:127.0.0.1 Port:8123 User:default Password:dzh123456 Database:dzh3136_go} Sync:{Database:dzh3136_go Tables:[addons_customer_pro_clues] FullSync:false BatchSize:1000 OptimizeInterval:1440} Log:{Level:info File:./logs/sync.log Stdout:true}}
+2026/04/13 23:43:19 main.go:532: [INFO] Connected to ClickHouse: 127.0.0.1:8123
+2026/04/13 23:43:19 binlogsyncer.go:201: INFO create BinlogSyncer config="{ServerID:1001 Flavor:mysql Host:127.0.0.1 Port:13308 User:sync_user Password: Localhost: Charset:utf8mb4 SemiSyncEnabled:false RawModeEnabled:false TLSConfig:<nil> ParseTime:false TimestampStringLocation:UTC UseDecimal:false UseFloatWithTrailingZero:false RecvBufferSize:0 HeartbeatPeriod:0s ReadTimeout:0s MaxReconnectAttempts:0 DisableRetrySync:false VerifyChecksum:false DumpCommandFlag:0 Option:<nil> Logger:0xc0001282a0 Dialer:0x41b32e0 RowsEventDecodeFunc:0x4443280 TableMapOptionalMetaDecodeFunc:<nil> DiscardGTIDSet:false EventCacheCount:10240 FillZeroLogPos:false PayloadDecoderConcurrency:0 SynchronousEventHandler:<nil>}"
+2026/04/13 23:43:19 main.go:541: [INFO] Canal created, listening MySQL: 127.0.0.1:13308
+2026/04/13 23:43:19 main.go:393: [INFO] Next OPTIMIZE scheduled in 24h0m0s
+2026/04/13 23:43:19 main.go:556: [INFO] Start syncing from mysql-bin.000028:814573
+2026/04/13 23:43:19 dump.go:199: INFO skip dump, use last binlog replication position or GTID set file=mysql-bin.000028 position=814573 "GTID set"=<nil>
+2026/04/13 23:43:19 binlogsyncer.go:453: INFO begin to sync binlog from position position="(mysql-bin.000028, 814573)"
+2026/04/13 23:43:19 binlogsyncer.go:420: INFO Connected to server flavor=mysql version=8.4.8
+2026/04/13 23:43:19 sync.go:23: INFO start sync binlog at binlog file pos="(mysql-bin.000028, 814573)"
+2026/04/13 23:43:19 binlogsyncer.go:896: INFO rotate to next binlog file=mysql-bin.000028 position=814573
+2026/04/13 23:43:19 sync.go:60: INFO received fake rotate event nextLogName=mysql-bin.000028
+2026/04/13 23:43:49 main.go:571: [INFO] Received signal: interrupt, shutting down...
+2026/04/13 23:43:49 main.go:576: [INFO] Current position: mysql-bin.000028:814573
+2026/04/13 23:43:49 main.go:579: [INFO] Sync service stopped
+2026/04/13 23:43:49 canal.go:259: INFO closing canal
+2026/04/13 23:43:49 binlogsyncer.go:237: INFO syncer is closing...
+2026/04/13 23:43:49 binlogsyncer.go:1029: INFO kill last connection id=6286
+2026/04/13 23:43:49 binlogsyncer.go:267: INFO syncer is closed

@@ -1,0 +1,65 @@
+# MySQL 到 ClickHouse 同步配置文件
+
+# ========================================
+# MySQL 配置
+# ========================================
+mysql:
+  # MySQL 地址
+  host: 127.0.0.1
+  # MySQL 端口
+  port: 13308
+  # 同步账号 (需要 REPLICATION SLAVE 权限)
+  user: sync_user
+  # 密码
+  password: sync_password_123
+  # 服务器 ID (必须唯一,不能与 MySQL server-id 冲突)
+  server_id: 1001
+  # MySQL 类型: mysql, mariadb
+  flavor: mysql
+
+# ========================================
+# ClickHouse 配置
+# ========================================
+clickhouse:
+  # ClickHouse 地址
+  host: 127.0.0.1
+  # HTTP 端口 (Native 端口 9000 被其他服务占用，使用 HTTP 端口 8123)
+  port: 8123
+  # 用户名
+  user: default
+  # 密码
+  password: dzh123456
+  # 目标数据库
+  database: dzh3136_go
+
+# ========================================
+# 同步配置
+# ========================================
+sync:
+  # 源数据库
+  database: dzh3136_go
+  # 要同步的表 (只同步这里指定的表，其他表忽略)
+  # 表名必须与 MySQL 表名完全一致
+  tables:
+    - addons_customer_pro_clues
+    # - addons_customer_pro_orders
+    # - other_table
+  # 是否全量同步 (首次部署建议开启)
+  full_sync: false
+  # 批量大小
+  batch_size: 1000
+  # OPTIMIZE 清理间隔 (分钟)，0 表示禁用自动清理
+  # 默认 1440 分钟 = 24 小时 = 每天
+  # 测试时可设为 1 分钟
+  optimize_interval: 1440
+
+# ========================================
+# 日志配置
+# ========================================
+log:
+  # 日志级别: debug, info, warn, error
+  level: info
+  # 日志文件路径
+  file: ./logs/sync.log
+  # 是否输出到控制台
+  stdout: true
