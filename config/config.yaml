@@ -24,7 +24,7 @@ clickhouse:
   # ClickHouse 地址
   host: 127.0.0.1
   # HTTP 端口 (Native 端口 9000 被其他服务占用，使用 HTTP 端口 8123)
-  port: 8123
+  port: 9000
   # 用户名
   user: default
   # 密码

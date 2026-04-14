@@ -19,7 +19,7 @@ COPY go.mod go.sum* ./
 COPY vendor/ vendor/
 
 # 复制源代码
-COPY config/main.go ./main.go
+COPY main.go ./main.go
 
 # 编译（使用 vendor，支持多平台）
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=vendor -ldflags="-w -s" -o sync-service .
@@ -27,8 +27,8 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -mod=vendor -ldflag
 # 运行阶段
 FROM registry.cn-heyuan.aliyuncs.com/gzdzh/alpine:latest
 
-# 设置时区（使用环境变量）
-ENV TZ=Asia/Shanghai
+# 设置时区 (使用 POSIX 格式，无需 tzdata 文件)
+ENV TZ=CST-8
 
 # 设置工作目录
 WORKDIR /app
@@ -39,9 +39,6 @@ COPY --from=builder /build/sync-service .
 # 创建配置和日志目录
 RUN mkdir -p /app/config /app/logs
 COPY config/config.yaml ./config/config.yaml
-
-# 暴露端口（如果需要健康检查接口）
-# EXPOSE 8080
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

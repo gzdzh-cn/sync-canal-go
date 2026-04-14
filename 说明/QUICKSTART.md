@@ -33,7 +33,7 @@ FLUSH PRIVILEGES;
 
 ### 3. 配置同步程序
 
-编辑 `cmd/config.yaml`:
+编辑 `config/config.yaml`:
 
 ```yaml
 sync:
@@ -147,16 +147,16 @@ go run cmd/import_to_clickhouse.go
 ### 6. 启动同步程序
 
 ```bash
-cd /Volumes/disk/site/go/dzhgo/dzhgo-admin/clickhouse/go-mysql
+cd go-mysql
 
 # 编译
-go build -o bin/mysql_to_clickhouse ./cmd/main.go
+go build -o bin/mysql_to_clickhouse main.go
 
 # 运行
-./bin/mysql_to_clickhouse -config ./cmd/config.yaml
+./bin/mysql_to_clickhouse -config ./config/config.yaml
 
 # 后台运行
-nohup ./bin/mysql_to_clickhouse -config ./cmd/config.yaml > logs/sync.log 2>&1 &
+nohup ./bin/mysql_to_clickhouse -config ./config/config.yaml > logs/sync.log 2>&1 &
 ```
 
 ### 7. 验证同步

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -345,7 +346,14 @@ func (h *ClickHouseHandler) OnRotate(header *replication.EventHeader, e *replica
 
 // OnDDL 处理 DDL 事件
 func (h *ClickHouseHandler) OnDDL(header *replication.EventHeader, nextPos mysql.Position, queryEvent *replication.QueryEvent) error {
-	log.Printf("[INFO] DDL: %s", string(queryEvent.Query))
+	// 只打印目标表的 DDL 日志
+	query := string(queryEvent.Query)
+	for _, table := range h.config.Sync.Tables {
+		if strings.Contains(query, table) {
+			log.Printf("[INFO] DDL: %s", query)
+			break
+		}
+	}
 	return nil
 }
 
@@ -439,7 +447,7 @@ func connectClickHouse(config *ClickHouseConfig) (driver.Conn, error) {
 			Username: config.User,
 			Password: config.Password,
 		},
-		Protocol: clickhouse.HTTP, // 使用 HTTP 协议（端口 8123），Native 端口 9000 被其他服务占用
+		// 协议根据端口自动选择: 9000=Native, 8123=HTTP
 		Settings: clickhouse.Settings{
 			"max_execution_time": 60,
 		},
@@ -470,6 +478,9 @@ func createCanal(config *Config) (*canal.Canal, error) {
 	cfg.Flavor = config.MySQL.Flavor
 	cfg.ServerID = config.MySQL.ServerID
 
+	// 禁用 mysqldump (仅增量同步，无需 mysqldump)
+	cfg.Dump.ExecutionPath = ""
+
 	// 只监听指定的数据库和表
 	if len(config.Sync.Tables) > 0 {
 		for _, table := range config.Sync.Tables {
@@ -487,6 +498,17 @@ func createCanal(config *Config) (*canal.Canal, error) {
 }
 
 func main() {
+	// 设置时区 (支持 TZ=CST-8 格式)
+	if tz := os.Getenv("TZ"); tz != "" {
+		// 尝试解析为 IANA 时区
+		if loc, err := time.LoadLocation(tz); err == nil {
+			time.Local = loc
+		} else if tz == "CST-8" {
+			// 处理 POSIX 格式 CST-8
+			time.Local = time.FixedZone("CST", 8*3600)
+		}
+	}
+
 	// 解析命令行参数
 	configFile := flag.String("config", "", "配置文件路径 (默认: config/config.yaml)")
 	flag.Parse()
