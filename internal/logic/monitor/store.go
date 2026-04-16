@@ -7,6 +7,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -768,9 +769,15 @@ func (s *sStore) GetLatencyStats(ctx context.Context, start, end int64) (*entity
 
 	g.Log().Debugf(ctx, "GetLatencyStats: count=%d, avg=%v, max=%v, min=%v", count, avgDelay, maxDelay, minDelay)
 
-	stats.AvgDelay = avgDelay
-	stats.MaxDelay = int64(maxDelay)
-	stats.MinDelay = int64(minDelay)
+	// 如果没有数据，返回空统计（避免 NaN 导致 JSON 序列化失败）
+	if count == 0 {
+		return stats, nil
+	}
+
+	// 检查 avgDelay 是否为 NaN，如果是则设为 0
+	if math.IsNaN(avgDelay) {
+		avgDelay = 0
+	}
 
 	stats.AvgDelay = avgDelay
 	stats.MaxDelay = int64(maxDelay)
