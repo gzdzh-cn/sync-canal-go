@@ -1,0 +1,90 @@
+# https://goframe.org/docs/web/server-config-file-template
+server:
+  address:     ":8000"
+  openapiPath: "/api.json"
+  swaggerPath: "/swagger"
+  serverRoot: "resource/public"
+
+# 监控配置
+monitor:
+  enabled:       true    # 是否启用监控
+  historyDays:   30      # 历史数据保留天数
+  collectPeriod: 10      # 采集周期(秒)
+  maxEvents:     10000   # 内存最大事件数
+  maxErrors:     1000    # 内存最大错误数
+  # ClickHouse 监控数据存储(可选，留空则仅使用内存)
+  clickhouse:
+    host:     "127.0.0.1"
+    port:     8124
+    user:     "default"
+    password: "dzh123456"
+    database: "sync_monitor"
+
+# https://goframe.org/docs/core/glog-config
+logger:
+  level:   "all"
+  stdout:  true
+  path:    "./logs"
+  file:    "sync-{Y-m-d}.log"
+  rotate:  "daily"
+  backups: 30
+
+# 同步源配置
+database:
+  default:
+    link: "mysql:sync_user:sync_password_123@tcp(127.0.0.1:13308)/dzh3136_go"
+    debug: true
+
+# Canal 配置
+canal:
+  serverId: 1001
+  flavor:   "mysql"
+  # 仅增量同步，禁用 mysqldump
+  dump: false
+
+# 同步目标配置
+sync:
+  # 源数据库
+  database: "dzh3136_go"
+  # 批量大小
+  batchSize: 1000
+  # 同步目标列表
+  targets:
+    - name: "clickhouse-main"
+      type: "clickhouse"
+      tables:
+        - "addons_customer_pro_clues"
+      clickhouse:
+        host:     "127.0.0.1"
+        port:     8124
+        user:     "default"
+        password: "dzh123456"
+        database: "dzh3136_go"
+      # 定时 OPTIMIZE 清理
+      schedule:
+        enable:   true
+        interval: 1440  # 分钟，1440 = 24小时
+
+    # Elasticsearch 目标 (示例)
+    # - name: "es-search"
+    #   type: "elasticsearch"
+    #   tables:
+    #     - "addons_customer_pro_clues"
+    #   elasticsearch:
+    #     hosts:
+    #       - "http://127.0.0.1:9200"
+    #     username: "elastic"
+    #     password: "changeme"
+    #     index: ""  # 留空则使用表名
+
+    # MySQL 目标 (示例)
+    # - name: "mysql-replica"
+    #   type: "mysql"
+    #   tables:
+    #     - "addons_customer_pro_clues"
+    #   mysql:
+    #     host:     "127.0.0.1"
+    #     port:     3306
+    #     user:     "writer"
+    #     password: "writer_password"
+    #     database: "dzh_replica"
