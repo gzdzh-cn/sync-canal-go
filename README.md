@@ -693,19 +693,19 @@ type IStore interface {
 
 ```bash
 # 获取服务状态
-curl http://localhost:8000/monitor/status
+curl http://localhost:8000/api/monitor/status
 
 # 获取事件统计（最近7天）
-curl http://localhost:8000/monitor/events/stats
+curl http://localhost:8000/api/monitor/events/stats
 
 # 获取延迟统计（最近1小时）
-curl "http://localhost:8000/monitor/latency?startTime=$(($(date +%s) - 3600))"
+curl "http://localhost:8000/api/monitor/latency?startTime=$(($(date +%s) - 3600))"
 
 # 查询事件列表
-curl "http://localhost:8000/monitor/events?tableName=addons_customer_pro_clues&page=1&pageSize=20"
+curl "http://localhost:8000/api/monitor/events?tableName=addons_customer_pro_clues&page=1&pageSize=20"
 
 # 实时推送（SSE）
-curl -N http://localhost:8000/monitor/status/realtime
+curl -N http://localhost:8000/api/monitor/status/realtime
 ```
 
 ### 监控数据表

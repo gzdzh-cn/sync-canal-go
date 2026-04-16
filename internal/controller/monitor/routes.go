@@ -5,6 +5,7 @@
 package monitor
 
 import (
+	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 
@@ -15,7 +16,7 @@ import (
 
 // CollectorWrapper 采集器包装器，实现 sync.ICollector 接口
 type CollectorWrapper struct {
-	Collector *monitor.Collector
+	Collector service.ICollector
 }
 
 // OnEvent 实现 ICollector 接口
@@ -53,12 +54,97 @@ func (w *CollectorWrapper) UpdateTargetStatus(name, status string) {
 	}
 }
 
+// Init 实现 ICollector 接口
+func (w *CollectorWrapper) Init(config *entity.MonitorConfig) error {
+	if w.Collector != nil {
+		return w.Collector.Init(config)
+	}
+	return nil
+}
+
+// Start 实现 ICollector 接口
+func (w *CollectorWrapper) Start() error {
+	if w.Collector != nil {
+		return w.Collector.Start()
+	}
+	return nil
+}
+
+// Stop 实现 ICollector 接口
+func (w *CollectorWrapper) Stop() error {
+	if w.Collector != nil {
+		return w.Collector.Stop()
+	}
+	return nil
+}
+
+// OnMetric 实现 ICollector 接口
+func (w *CollectorWrapper) OnMetric(m *entity.SyncMetric) {
+	if w.Collector != nil {
+		w.Collector.OnMetric(m)
+	}
+}
+
+// OnRow 实现 ICollector 接口
+func (w *CollectorWrapper) OnRow(e *canal.RowsEvent, durationMs int, err error) {
+	if w.Collector != nil {
+		w.Collector.OnRow(e, durationMs, err)
+	}
+}
+
+// GetStatus 实现 ICollector 接口
+func (w *CollectorWrapper) GetStatus() *entity.ServiceStatus {
+	if w.Collector != nil {
+		return w.Collector.GetStatus()
+	}
+	return &entity.ServiceStatus{}
+}
+
+// GetTargets 实现 ICollector 接口
+func (w *CollectorWrapper) GetTargets() []*entity.TargetStatus {
+	if w.Collector != nil {
+		return w.Collector.GetTargets()
+	}
+	return nil
+}
+
+// GetEventBuffer 实现 ICollector 接口
+func (w *CollectorWrapper) GetEventBuffer() []*entity.SyncEvent {
+	if w.Collector != nil {
+		return w.Collector.GetEventBuffer()
+	}
+	return nil
+}
+
+// GetErrorBuffer 实现 ICollector 接口
+func (w *CollectorWrapper) GetErrorBuffer() []*entity.SyncError {
+	if w.Collector != nil {
+		return w.Collector.GetErrorBuffer()
+	}
+	return nil
+}
+
+// GetConfig 实现 ICollector 接口
+func (w *CollectorWrapper) GetConfig() *entity.MonitorConfig {
+	if w.Collector != nil {
+		return w.Collector.GetConfig()
+	}
+	return &entity.MonitorConfig{}
+}
+
+// SetEnabled 实现 ICollector 接口
+func (w *CollectorWrapper) SetEnabled(enabled bool) {
+	if w.Collector != nil {
+		w.Collector.SetEnabled(enabled)
+	}
+}
+
 // RegisterRoutes 注册监控路由
-func RegisterRoutes(collector *monitor.Collector, store service.IStore, version string) {
+func RegisterRoutes(collector service.ICollector, store service.IStore, version string) {
 	ctrl := NewController(collector, store, version)
 
 	// 分组注册 API
-	g.Server().Group("/monitor", func(group *ghttp.RouterGroup) {
+	g.Server().Group("/api/monitor", func(group *ghttp.RouterGroup) {
 		// 使用响应中间件
 		group.Middleware(ghttp.MiddlewareHandlerResponse)
 
@@ -118,7 +204,7 @@ func RegisterRoutes(collector *monitor.Collector, store service.IStore, version 
 }
 
 // InitMonitor 初始化监控系统
-func InitMonitor(config *entity.MonitorConfig, chConfig *entity.ClickHouseConfig, version string) (*monitor.Collector, service.IStore, error) {
+func InitMonitor(config *entity.MonitorConfig, chConfig *entity.ClickHouseConfig, version string) (service.ICollector, service.IStore, error) {
 	// 创建存储
 	store, err := monitor.NewStore(config, chConfig)
 	if err != nil {

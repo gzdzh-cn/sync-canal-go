@@ -20,6 +20,10 @@ import (
 	"sync-canal-go/internal/service"
 )
 
+func init() {
+	service.RegisterSync(New())
+}
+
 // sSync 同步服务实现
 type sSync struct{}
 

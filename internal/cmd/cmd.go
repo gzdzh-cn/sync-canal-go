@@ -8,17 +8,11 @@ import (
 	"context"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gcmd"
-	"github.com/gogf/gf/v2/os/gres"
 
-	"sync-canal-go/internal/controller/monitor"
-	"sync-canal-go/internal/logic/sync"
-	"sync-canal-go/internal/model/entity"
+	_ "sync-canal-go/internal/logic/app"
+	"sync-canal-go/internal/service"
 )
-
-// 全局监控采集器
-var globalCollector *monitor.CollectorWrapper
 
 var (
 	Main = gcmd.Command{
@@ -26,136 +20,23 @@ var (
 		Usage: "main",
 		Brief: "start mysql binlog sync service",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
-			// 获取 Server 实例
-			s := g.Server()
+			a := service.App()
 
 			// 配置静态文件服务（前端 UI）
-			s.BindHookHandler("/*", ghttp.HookBeforeServe, func(r *ghttp.Request) {
-				// 只处理非 API 请求
-				if len(r.URL.Path) >= 8 && r.URL.Path[:8] == "/monitor" {
-					return
-				}
-				if r.URL.Path == "/api.json" || len(r.URL.Path) >= 8 && r.URL.Path[:8] == "/swagger" {
-					return
-				}
-
-				// 尝试从资源中读取静态文件
-				filePath := r.URL.Path
-				if filePath == "/" {
-					filePath = "/index.html"
-				}
-
-				// 从打包的资源中读取
-				file := gres.Get("resource/public" + filePath)
-				if file != nil {
-					r.Response.Write(file.Content())
-					r.Exit()
-					return
-				}
-
-				// SPA 应用：所有未匹配的路由返回 index.html
-				indexFile := gres.Get("resource/public/index.html")
-				if indexFile != nil {
-					r.Response.Write(indexFile.Content())
-					r.Exit()
-				}
-			})
+			a.SetupStaticFiles()
 
 			// 初始化监控系统
-			monitorCfg, chCfg := loadMonitorConfig(ctx)
-			if monitorCfg.Enabled {
-				collector, _, err := monitor.InitMonitor(monitorCfg, chCfg, "1.0.0")
-				if err != nil {
-					g.Log().Warningf(ctx, "Init monitor failed: %v, monitoring disabled", err)
-				} else {
-					g.Log().Info(ctx, "Monitor system initialized successfully")
-					// 保存到全局变量供同步服务使用
-					globalCollector = &monitor.CollectorWrapper{Collector: collector}
-				}
-			}
+			a.InitMonitor(ctx)
 
-			// 在后台启动 Canal 同步服务
-			go startCanalSync(ctx)
+			// 异步启动 Canal 同步服务
+			a.StartCanalSyncAsync()
 
-			// 启动 HTTP 服务器（会打印路由表）
-			s.Run()
+			// 注册优雅关闭
+			go a.WaitForShutdown()
+
+			// 启动 HTTP 服务器
+			g.Server().Run()
 			return nil
 		},
 	}
 )
-
-// startCanalSync 启动 Canal 同步服务
-func startCanalSync(ctx context.Context) {
-	// 创建同步服务
-	svc := sync.New()
-
-	// 初始化时区
-	svc.InitTimezone()
-
-	// 加载配置
-	syncConfig, canalConfig, err := svc.LoadConfig(ctx)
-	if err != nil {
-		g.Log().Fatal(ctx, "Load config failed:", err)
-	}
-
-	// 创建 Canal
-	c, err := svc.CreateCanal(syncConfig, canalConfig)
-	if err != nil {
-		g.Log().Fatal(ctx, "Create canal failed:", err)
-	}
-	defer c.Close()
-
-	g.Log().Infof(ctx, "Canal created, serverId: %d", canalConfig.ServerId)
-
-	// 创建所有同步目标
-	targets, err := svc.CreateTargets(syncConfig)
-	if err != nil {
-		g.Log().Fatal(ctx, "Create targets failed:", err)
-	}
-	defer func() {
-		for _, t := range targets {
-			_ = t.Close()
-		}
-	}()
-
-	// 设置事件处理器（MultiHandler 广播到所有目标）
-	handler := sync.NewMultiHandler(targets, globalCollector)
-	c.SetEventHandler(handler)
-
-	// 启动所有目标的后台任务
-	handler.StartTargets()
-
-	// 获取当前 binlog 位置
-	pos, err := c.GetMasterPos()
-	if err != nil {
-		g.Log().Fatal(ctx, "Get master position failed:", err)
-	}
-
-	g.Log().Infof(ctx, "Start syncing from %s:%d", pos.Name, pos.Pos)
-
-	// 启动同步（阻塞）
-	if err := c.RunFrom(pos); err != nil {
-		g.Log().Fatal(ctx, "Run canal failed:", err)
-	}
-}
-
-// loadMonitorConfig 加载监控配置
-func loadMonitorConfig(ctx context.Context) (*entity.MonitorConfig, *entity.ClickHouseConfig) {
-	cfg := &entity.MonitorConfig{
-		Enabled:       g.Cfg().MustGet(ctx, "monitor.enabled", true).Bool(),
-		HistoryDays:   g.Cfg().MustGet(ctx, "monitor.historyDays", 30).Int(),
-		CollectPeriod: g.Cfg().MustGet(ctx, "monitor.collectPeriod", 10).Int(),
-		MaxEvents:     g.Cfg().MustGet(ctx, "monitor.maxEvents", 10000).Int(),
-		MaxErrors:     g.Cfg().MustGet(ctx, "monitor.maxErrors", 1000).Int(),
-	}
-
-	chCfg := &entity.ClickHouseConfig{
-		Host:     g.Cfg().MustGet(ctx, "monitor.clickhouse.host", "127.0.0.1").String(),
-		Port:     g.Cfg().MustGet(ctx, "monitor.clickhouse.port", 8124).Int(),
-		User:     g.Cfg().MustGet(ctx, "monitor.clickhouse.user", "default").String(),
-		Password: g.Cfg().MustGet(ctx, "monitor.clickhouse.password", "").String(),
-		Database: g.Cfg().MustGet(ctx, "monitor.clickhouse.database", "sync_monitor").String(),
-	}
-
-	return cfg, chCfg
-}

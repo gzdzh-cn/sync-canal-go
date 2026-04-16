@@ -12,14 +12,13 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 
-	"sync-canal-go/internal/logic/monitor"
 	"sync-canal-go/internal/model/entity"
 	"sync-canal-go/internal/service"
 )
 
 // Controller 监控控制器
 type Controller struct {
-	collector *monitor.Collector
+	collector service.ICollector
 	store     service.IStore
 	version   string
 }
@@ -49,7 +48,7 @@ func (c *Controller) getConfig() *entity.MonitorConfig {
 }
 
 // NewController 创建控制器
-func NewController(collector *monitor.Collector, store service.IStore, version string) *Controller {
+func NewController(collector service.ICollector, store service.IStore, version string) *Controller {
 	return &Controller{
 		collector: collector,
 		store:     store,
@@ -276,7 +275,7 @@ func (c *Controller) Events(ctx context.Context, req *EventsReq) (res *EventsRes
 		PageSize:   req.PageSize,
 	}
 
-	list, total, err := c.store.GetEvents(ctx, query)
+	list, total, err := c.store.GetEvents(ctx, *query)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +344,7 @@ func (c *Controller) Errors(ctx context.Context, req *ErrorsReq) (res *ErrorsRes
 		PageSize:   req.PageSize,
 	}
 
-	list, total, err := c.store.GetErrors(ctx, query)
+	list, total, err := c.store.GetErrors(ctx, *query)
 	if err != nil {
 		return nil, err
 	}

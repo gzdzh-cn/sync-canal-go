@@ -18,8 +18,8 @@ import (
 	"sync-canal-go/internal/service"
 )
 
-// Collector 指标采集器
-type Collector struct {
+// sCollector 指标采集器
+type sCollector struct {
 	config     *entity.MonitorConfig
 	store      service.IStore
 	running    atomic.Bool
@@ -35,14 +35,14 @@ type Collector struct {
 	tpsCounter atomic.Int64
 
 	// 环形缓冲区
-	eventBuffer *RingBuffer[*entity.SyncEvent]
-	errorBuffer *RingBuffer[*entity.SyncError]
+	eventBuffer *sRingBuffer[*entity.SyncEvent]
+	errorBuffer *sRingBuffer[*entity.SyncError]
 }
 
 // NewCollector 创建采集器
-func NewCollector(config *entity.MonitorConfig, store service.IStore) *Collector {
+func NewCollector(config *entity.MonitorConfig, store service.IStore) *sCollector {
 	config.SetDefaults()
-	return &Collector{
+	return &sCollector{
 		config:       config,
 		store:        store,
 		stopChan:     make(chan struct{}),
@@ -54,7 +54,7 @@ func NewCollector(config *entity.MonitorConfig, store service.IStore) *Collector
 }
 
 // Init 初始化/更新配置
-func (c *Collector) Init(config *entity.MonitorConfig) error {
+func (c *sCollector) Init(config *entity.MonitorConfig) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.config = config
@@ -77,7 +77,7 @@ func (c *Collector) Init(config *entity.MonitorConfig) error {
 }
 
 // Start 启动采集器
-func (c *Collector) Start() error {
+func (c *sCollector) Start() error {
 	if c.running.Load() {
 		return nil
 	}
@@ -96,7 +96,7 @@ func (c *Collector) Start() error {
 }
 
 // Stop 停止采集器
-func (c *Collector) Stop() error {
+func (c *sCollector) Stop() error {
 	if !c.running.Load() {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (c *Collector) Stop() error {
 }
 
 // collectLoop 定时采集循环
-func (c *Collector) collectLoop() {
+func (c *sCollector) collectLoop() {
 	ticker := time.NewTicker(time.Duration(c.getCollectPeriod()) * time.Second)
 	defer ticker.Stop()
 
@@ -129,7 +129,7 @@ func (c *Collector) collectLoop() {
 }
 
 // getCollectPeriod 获取采集周期
-func (c *Collector) getCollectPeriod() int {
+func (c *sCollector) getCollectPeriod() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.config == nil || c.config.CollectPeriod <= 0 {
@@ -139,7 +139,7 @@ func (c *Collector) getCollectPeriod() int {
 }
 
 // metricsLoop 指标计算循环
-func (c *Collector) metricsLoop() {
+func (c *sCollector) metricsLoop() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -165,7 +165,7 @@ func (c *Collector) metricsLoop() {
 }
 
 // collectMetrics 采集指标
-func (c *Collector) collectMetrics() {
+func (c *sCollector) collectMetrics() {
 	ctx := context.Background()
 
 	// 采集位置信息
@@ -181,14 +181,14 @@ func (c *Collector) collectMetrics() {
 }
 
 // isEnabled 检查监控是否启用
-func (c *Collector) isEnabled() bool {
+func (c *sCollector) isEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.config != nil && c.config.Enabled
 }
 
 // OnEvent 处理事件
-func (c *Collector) OnEvent(e *entity.SyncEvent) {
+func (c *sCollector) OnEvent(e *entity.SyncEvent) {
 	// 如果监控已禁用，跳过处理
 	if !c.isEnabled() {
 		return
@@ -216,7 +216,7 @@ func (c *Collector) OnEvent(e *entity.SyncEvent) {
 }
 
 // OnPosition 处理位置更新
-func (c *Collector) OnPosition(p *entity.SyncPosition) {
+func (c *sCollector) OnPosition(p *entity.SyncPosition) {
 	// 如果监控已禁用，跳过处理
 	if !c.isEnabled() {
 		return
@@ -241,7 +241,7 @@ func (c *Collector) OnPosition(p *entity.SyncPosition) {
 }
 
 // OnError 处理错误
-func (c *Collector) OnError(err *entity.SyncError) {
+func (c *sCollector) OnError(err *entity.SyncError) {
 	// 如果监控已禁用，跳过处理
 	if !c.isEnabled() {
 		return
@@ -272,7 +272,7 @@ func (c *Collector) OnError(err *entity.SyncError) {
 }
 
 // OnMetric 处理指标
-func (c *Collector) OnMetric(m *entity.SyncMetric) {
+func (c *sCollector) OnMetric(m *entity.SyncMetric) {
 	// 如果监控已禁用，跳过处理
 	if !c.isEnabled() {
 		return
@@ -289,7 +289,7 @@ func (c *Collector) OnMetric(m *entity.SyncMetric) {
 }
 
 // OnRow 处理 canal 行事件
-func (c *Collector) OnRow(e *canal.RowsEvent, durationMs int, err error) {
+func (c *sCollector) OnRow(e *canal.RowsEvent, durationMs int, err error) {
 	event := &entity.SyncEvent{
 		Timestamp:  time.Now(),
 		EventType:  string(e.Action),
@@ -308,7 +308,7 @@ func (c *Collector) OnRow(e *canal.RowsEvent, durationMs int, err error) {
 }
 
 // RegisterTarget 注册目标
-func (c *Collector) RegisterTarget(name, targetType string) {
+func (c *sCollector) RegisterTarget(name, targetType string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.targets[name] = &entity.TargetStatus{
@@ -320,7 +320,7 @@ func (c *Collector) RegisterTarget(name, targetType string) {
 }
 
 // UpdateTargetStatus 更新目标状态
-func (c *Collector) UpdateTargetStatus(name, status string) {
+func (c *sCollector) UpdateTargetStatus(name, status string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if target, ok := c.targets[name]; ok {
@@ -330,7 +330,7 @@ func (c *Collector) UpdateTargetStatus(name, status string) {
 }
 
 // GetStatus 获取状态
-func (c *Collector) GetStatus() *entity.ServiceStatus {
+func (c *sCollector) GetStatus() *entity.ServiceStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	status := *c.status
@@ -338,7 +338,7 @@ func (c *Collector) GetStatus() *entity.ServiceStatus {
 }
 
 // GetTargets 获取所有目标状态
-func (c *Collector) GetTargets() []*entity.TargetStatus {
+func (c *sCollector) GetTargets() []*entity.TargetStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	result := make([]*entity.TargetStatus, 0, len(c.targets))
@@ -350,17 +350,17 @@ func (c *Collector) GetTargets() []*entity.TargetStatus {
 }
 
 // GetEventBuffer 获取事件缓冲区
-func (c *Collector) GetEventBuffer() []*entity.SyncEvent {
+func (c *sCollector) GetEventBuffer() []*entity.SyncEvent {
 	return c.eventBuffer.GetAll()
 }
 
 // GetErrorBuffer 获取错误缓冲区
-func (c *Collector) GetErrorBuffer() []*entity.SyncError {
+func (c *sCollector) GetErrorBuffer() []*entity.SyncError {
 	return c.errorBuffer.GetAll()
 }
 
 // GetConfig 获取当前配置
-func (c *Collector) GetConfig() *entity.MonitorConfig {
+func (c *sCollector) GetConfig() *entity.MonitorConfig {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.config == nil {
@@ -372,7 +372,7 @@ func (c *Collector) GetConfig() *entity.MonitorConfig {
 }
 
 // SetEnabled 设置监控启用状态
-func (c *Collector) SetEnabled(enabled bool) {
+func (c *sCollector) SetEnabled(enabled bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.config != nil {

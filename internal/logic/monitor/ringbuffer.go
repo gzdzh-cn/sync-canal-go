@@ -8,8 +8,8 @@ import (
 	"sync"
 )
 
-// RingBuffer 环形缓冲区（线程安全）
-type RingBuffer[T any] struct {
+// sRingBuffer 环形缓冲区（线程安全）
+type sRingBuffer[T any] struct {
 	data  []T
 	size  int
 	head  int
@@ -19,15 +19,15 @@ type RingBuffer[T any] struct {
 }
 
 // NewRingBuffer 创建环形缓冲区
-func NewRingBuffer[T any](size int) *RingBuffer[T] {
-	return &RingBuffer[T]{
+func NewRingBuffer[T any](size int) *sRingBuffer[T] {
+	return &sRingBuffer[T]{
 		data: make([]T, size),
 		size: size,
 	}
 }
 
 // Put 添加元素
-func (rb *RingBuffer[T]) Put(item T) {
+func (rb *sRingBuffer[T]) Put(item T) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (rb *RingBuffer[T]) Put(item T) {
 }
 
 // GetAll 获取所有元素
-func (rb *RingBuffer[T]) GetAll() []T {
+func (rb *sRingBuffer[T]) GetAll() []T {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 
@@ -60,7 +60,7 @@ func (rb *RingBuffer[T]) GetAll() []T {
 }
 
 // GetLast 获取最后N个元素
-func (rb *RingBuffer[T]) GetLast(n int) []T {
+func (rb *sRingBuffer[T]) GetLast(n int) []T {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 
@@ -82,21 +82,21 @@ func (rb *RingBuffer[T]) GetLast(n int) []T {
 }
 
 // Count 获取元素数量
-func (rb *RingBuffer[T]) Count() int {
+func (rb *sRingBuffer[T]) Count() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 	return rb.count
 }
 
 // Capacity 获取缓冲区容量
-func (rb *RingBuffer[T]) Capacity() int {
+func (rb *sRingBuffer[T]) Capacity() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 	return rb.size
 }
 
 // Clear 清空缓冲区
-func (rb *RingBuffer[T]) Clear() {
+func (rb *sRingBuffer[T]) Clear() {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 

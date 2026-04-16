@@ -19,8 +19,8 @@ import (
 	"sync-canal-go/internal/service"
 )
 
-// Store 指标存储实现
-type Store struct {
+// sStore 指标存储实现
+type sStore struct {
 	chConn driver.Conn
 	config *entity.MonitorConfig
 
@@ -37,8 +37,8 @@ type Store struct {
 }
 
 // NewStore 创建存储实例
-func NewStore(config *entity.MonitorConfig, chConfig *entity.ClickHouseConfig) (*Store, error) {
-	s := &Store{
+func NewStore(config *entity.MonitorConfig, chConfig *entity.ClickHouseConfig) (*sStore, error) {
+	s := &sStore{
 		config:      config,
 		eventCache:  make(map[string]*entity.SyncEvent),
 		errorCache:  make(map[string]*entity.SyncError),
@@ -243,7 +243,7 @@ func createTables(ctx context.Context, conn driver.Conn, historyDays int) error 
 }
 
 // Close 关闭连接
-func (s *Store) Close() error {
+func (s *sStore) Close() error {
 	if s.chConn != nil {
 		return s.chConn.Close()
 	}
@@ -251,7 +251,7 @@ func (s *Store) Close() error {
 }
 
 // SaveEvent 保存事件
-func (s *Store) SaveEvent(ctx context.Context, e *entity.SyncEvent) error {
+func (s *sStore) SaveEvent(ctx context.Context, e *entity.SyncEvent) error {
 	// 内存缓存
 	s.mu.Lock()
 	s.eventCache[fmt.Sprintf("%d_%s", e.Timestamp.UnixNano(), e.TableName)] = e
@@ -265,7 +265,7 @@ func (s *Store) SaveEvent(ctx context.Context, e *entity.SyncEvent) error {
 }
 
 // SaveEvents 批量保存事件
-func (s *Store) SaveEvents(ctx context.Context, events []*entity.SyncEvent) error {
+func (s *sStore) SaveEvents(ctx context.Context, events []*entity.SyncEvent) error {
 	if s.chConn == nil || len(events) == 0 {
 		return nil
 	}
@@ -296,7 +296,7 @@ func (s *Store) SaveEvents(ctx context.Context, events []*entity.SyncEvent) erro
 }
 
 // insertEvent 插入单个事件
-func (s *Store) insertEvent(ctx context.Context, e *entity.SyncEvent) error {
+func (s *sStore) insertEvent(ctx context.Context, e *entity.SyncEvent) error {
 	return s.chConn.Exec(ctx, `
 		INSERT INTO sync_events (
 			timestamp, event_type, target_name, table_name,
@@ -309,7 +309,7 @@ func (s *Store) insertEvent(ctx context.Context, e *entity.SyncEvent) error {
 }
 
 // GetEvents 查询事件列表
-func (s *Store) GetEvents(ctx context.Context, query *service.EventQuery) ([]*entity.SyncEvent, int64, error) {
+func (s *sStore) GetEvents(ctx context.Context, query service.EventQuery) ([]*entity.SyncEvent, int64, error) {
 	if s.chConn == nil {
 		return s.getEventsFromMemory(query)
 	}
@@ -387,7 +387,7 @@ func (s *Store) GetEvents(ctx context.Context, query *service.EventQuery) ([]*en
 }
 
 // getEventsFromMemory 从内存获取事件
-func (s *Store) getEventsFromMemory(query *service.EventQuery) ([]*entity.SyncEvent, int64, error) {
+func (s *sStore) getEventsFromMemory(query service.EventQuery) ([]*entity.SyncEvent, int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -429,7 +429,7 @@ func (s *Store) getEventsFromMemory(query *service.EventQuery) ([]*entity.SyncEv
 }
 
 // SaveError 保存错误
-func (s *Store) SaveError(ctx context.Context, err *entity.SyncError) error {
+func (s *sStore) SaveError(ctx context.Context, err *entity.SyncError) error {
 	// 内存缓存
 	s.mu.Lock()
 	s.errorCache[fmt.Sprintf("%d_%s", err.Timestamp.UnixNano(), err.TargetName)] = err
@@ -449,7 +449,7 @@ func (s *Store) SaveError(ctx context.Context, err *entity.SyncError) error {
 }
 
 // GetErrors 查询错误列表
-func (s *Store) GetErrors(ctx context.Context, query *service.ErrorQuery) ([]*entity.SyncError, int64, error) {
+func (s *sStore) GetErrors(ctx context.Context, query service.ErrorQuery) ([]*entity.SyncError, int64, error) {
 	if s.chConn == nil {
 		return s.getErrorsFromMemory(query)
 	}
@@ -514,7 +514,7 @@ func (s *Store) GetErrors(ctx context.Context, query *service.ErrorQuery) ([]*en
 }
 
 // getErrorsFromMemory 从内存获取错误
-func (s *Store) getErrorsFromMemory(query *service.ErrorQuery) ([]*entity.SyncError, int64, error) {
+func (s *sStore) getErrorsFromMemory(query service.ErrorQuery) ([]*entity.SyncError, int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -550,7 +550,7 @@ func (s *Store) getErrorsFromMemory(query *service.ErrorQuery) ([]*entity.SyncEr
 }
 
 // SavePosition 保存位置
-func (s *Store) SavePosition(ctx context.Context, p *entity.SyncPosition) error {
+func (s *sStore) SavePosition(ctx context.Context, p *entity.SyncPosition) error {
 	// 内存缓存
 	s.mu.Lock()
 	s.positionMap[p.TargetName] = p
@@ -569,7 +569,7 @@ func (s *Store) SavePosition(ctx context.Context, p *entity.SyncPosition) error 
 }
 
 // GetPosition 获取当前位置
-func (s *Store) GetPosition(ctx context.Context, targetName string) (*entity.SyncPosition, error) {
+func (s *sStore) GetPosition(ctx context.Context, targetName string) (*entity.SyncPosition, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -580,7 +580,7 @@ func (s *Store) GetPosition(ctx context.Context, targetName string) (*entity.Syn
 }
 
 // GetPositionHistory 获取位置历史
-func (s *Store) GetPositionHistory(ctx context.Context, targetName string, start, end int64) ([]*entity.PositionHistory, error) {
+func (s *sStore) GetPositionHistory(ctx context.Context, targetName string, start, end int64) ([]*entity.PositionHistory, error) {
 	if s.chConn == nil {
 		return nil, nil
 	}
@@ -613,7 +613,7 @@ func (s *Store) GetPositionHistory(ctx context.Context, targetName string, start
 }
 
 // SaveMetric 保存指标
-func (s *Store) SaveMetric(ctx context.Context, m *entity.SyncMetric) error {
+func (s *sStore) SaveMetric(ctx context.Context, m *entity.SyncMetric) error {
 	if s.chConn == nil {
 		return nil
 	}
@@ -627,7 +627,7 @@ func (s *Store) SaveMetric(ctx context.Context, m *entity.SyncMetric) error {
 }
 
 // SaveMetrics 批量保存指标
-func (s *Store) SaveMetrics(ctx context.Context, metrics []*entity.SyncMetric) error {
+func (s *sStore) SaveMetrics(ctx context.Context, metrics []*entity.SyncMetric) error {
 	if s.chConn == nil || len(metrics) == 0 {
 		return nil
 	}
@@ -649,7 +649,7 @@ func (s *Store) SaveMetrics(ctx context.Context, metrics []*entity.SyncMetric) e
 }
 
 // GetMetricHistory 获取指标历史
-func (s *Store) GetMetricHistory(ctx context.Context, name string, start, end int64) ([]*entity.MetricHistory, error) {
+func (s *sStore) GetMetricHistory(ctx context.Context, name string, start, end int64) ([]*entity.MetricHistory, error) {
 	if s.chConn == nil {
 		return nil, nil
 	}
@@ -678,7 +678,7 @@ func (s *Store) GetMetricHistory(ctx context.Context, name string, start, end in
 }
 
 // GetEventStats 获取事件统计
-func (s *Store) GetEventStats(ctx context.Context, start, end int64) (*entity.EventStats, error) {
+func (s *sStore) GetEventStats(ctx context.Context, start, end int64) (*entity.EventStats, error) {
 	stats := &entity.EventStats{}
 
 	if s.chConn == nil {
@@ -739,7 +739,7 @@ func (s *Store) GetEventStats(ctx context.Context, start, end int64) (*entity.Ev
 }
 
 // GetLatencyStats 获取延迟统计
-func (s *Store) GetLatencyStats(ctx context.Context, start, end int64) (*entity.LatencyStats, error) {
+func (s *sStore) GetLatencyStats(ctx context.Context, start, end int64) (*entity.LatencyStats, error) {
 	stats := &entity.LatencyStats{}
 
 	if s.chConn == nil {
@@ -824,7 +824,7 @@ func (s *Store) GetLatencyStats(ctx context.Context, start, end int64) (*entity.
 }
 
 // GetLatencyHistory 获取延迟历史
-func (s *Store) GetLatencyHistory(ctx context.Context, start, end int64) ([]*entity.MetricHistory, error) {
+func (s *sStore) GetLatencyHistory(ctx context.Context, start, end int64) ([]*entity.MetricHistory, error) {
 	if s.chConn == nil {
 		return nil, nil
 	}
@@ -858,7 +858,7 @@ func (s *Store) GetLatencyHistory(ctx context.Context, start, end int64) ([]*ent
 }
 
 // GetErrorStats 获取错误统计
-func (s *Store) GetErrorStats(ctx context.Context, start, end int64) (*entity.ErrorStats, error) {
+func (s *sStore) GetErrorStats(ctx context.Context, start, end int64) (*entity.ErrorStats, error) {
 	stats := &entity.ErrorStats{
 		ByLevel:  make(map[string]int64),
 		ByTarget: make(map[string]int64),
@@ -935,7 +935,7 @@ func (s *Store) GetErrorStats(ctx context.Context, start, end int64) (*entity.Er
 }
 
 // GetTargetsFromEvents 从事件数据中获取目标列表
-func (s *Store) GetTargetsFromEvents(ctx context.Context) ([]string, error) {
+func (s *sStore) GetTargetsFromEvents(ctx context.Context) ([]string, error) {
 	if s.chConn == nil {
 		return nil, nil
 	}
@@ -964,7 +964,7 @@ func (s *Store) GetTargetsFromEvents(ctx context.Context) ([]string, error) {
 }
 
 // GetTargetStats 获取目标统计信息
-func (s *Store) GetTargetStats(ctx context.Context, targetName string, start, end int64) (*entity.TargetStatus, error) {
+func (s *sStore) GetTargetStats(ctx context.Context, targetName string, start, end int64) (*entity.TargetStatus, error) {
 	status := &entity.TargetStatus{
 		Name:      targetName,
 		Type:      "clickhouse",
@@ -1038,7 +1038,7 @@ func (s *Store) GetTargetStats(ctx context.Context, targetName string, start, en
 }
 
 // expandTargetNames 扩展目标名称，用于兼容历史数据
-func (s *Store) expandTargetNames(targetName string) []string {
+func (s *sStore) expandTargetNames(targetName string) []string {
 	names := []string{targetName}
 
 	// 解析 "Type:name" 格式
@@ -1057,7 +1057,7 @@ func (s *Store) expandTargetNames(targetName string) []string {
 }
 
 // Cleanup 清理过期数据
-func (s *Store) Cleanup(ctx context.Context, before int64) error {
+func (s *sStore) Cleanup(ctx context.Context, before int64) error {
 	if s.chConn == nil {
 		return nil
 	}
