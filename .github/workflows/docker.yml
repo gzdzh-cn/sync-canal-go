@@ -6,6 +6,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   docker:
     runs-on: ubuntu-latest
