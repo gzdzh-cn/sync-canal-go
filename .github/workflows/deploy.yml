@@ -37,6 +37,17 @@ jobs:
             IMAGE="registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:${IMAGE_TAG}"
             CONTAINER_NAME="sync-canal-go"
             
+            # 检测配置文件路径
+            if [ -f "${DEPLOY_PATH}/config/config.yaml" ]; then
+              CONFIG_FILE="${DEPLOY_PATH}/config/config.yaml"
+            elif [ -f "${DEPLOY_PATH}/config.yaml" ]; then
+              CONFIG_FILE="${DEPLOY_PATH}/config.yaml"
+            else
+              echo "❌ 配置文件不存在: ${DEPLOY_PATH}/config/config.yaml 或 ${DEPLOY_PATH}/config.yaml"
+              exit 1
+            fi
+            
+            echo "=== Using config: \$CONFIG_FILE ==="
             echo "=== Pulling image: \$IMAGE ==="
             docker pull \$IMAGE
             
@@ -49,7 +60,7 @@ jobs:
               --name \$CONTAINER_NAME \
               --restart always \
               -p 8000:8000 \
-              -v ${DEPLOY_PATH}/config/config.yaml:/app/manifest/config/config.yaml:ro \
+              -v \$CONFIG_FILE:/app/manifest/config/config.yaml:ro \
               -v ${DEPLOY_PATH}/logs:/app/logs \
               \$IMAGE
             
