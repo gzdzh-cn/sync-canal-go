@@ -55,5 +55,4 @@ jobs:
         uses: benc-uk/workflow-dispatch@v1
         with:
           workflow: deploy.yml
-          inputs: |
-            { "image_tag": "latest" }
+          inputs: '{"image_tag": "latest"}'
