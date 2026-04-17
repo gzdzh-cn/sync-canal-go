@@ -1,12 +1,24 @@
+# ============================================================
+# Deploy 工作流 - SSH 部署到服务器
+# ============================================================
+# 功能：通过 SSH 连接服务器，使用 docker-compose 更新 sync-canal-go 容器
+# 触发方式：
+#   1. 手动触发（GitHub Actions 页面）
+#   2. 被 docker.yml 工作流调用
+# ============================================================
+
 name: Deploy
 
 on:
+  # 手动触发（在 GitHub Actions 页面点击 Run workflow）
   workflow_dispatch:
     inputs:
       image_tag:
         description: 'Docker image tag to deploy'
         required: false
-        default: 'latest'
+        default: 'latest'  # 默认使用 latest 标签
+
+  # 被其他工作流调用（docker.yml 触发）
   workflow_call:
     inputs:
       image_tag:
@@ -17,57 +29,105 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # 在 GitHub 托管的 Ubuntu 机器上运行
+
     steps:
+      # --------------------------------------------------------
+      # Step 1: 设置 SSH 连接
+      # --------------------------------------------------------
+      # 将 Secret 中的私钥写入文件，配置 SSH 连接
+      # 需要配置的 Secrets:
+      #   - SERVER_SSH_KEY: SSH 私钥内容
+      #   - SERVER_HOST: 服务器 IP 地址
+      #   - SERVER_PORT: SSH 端口（可选，默认 22）
+      # --------------------------------------------------------
       - name: Setup SSH
         run: |
+          # 创建 .ssh 目录
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
+          # 将 Secret 中的私钥写入文件
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+
+          # 设置私钥权限（SSH 要求必须是 600）
+          chmod 600 ~/.ssh/id_rsa
+
+          # 将服务器添加到 known_hosts（避免首次连接时的确认提示）
+          ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          #        ↑ SSH 端口（默认 22）           ↑ 服务器 IP
+
+      # --------------------------------------------------------
+      # Step 2: 部署到服务器
+      # --------------------------------------------------------
+      # 通过 SSH 连接服务器，执行 docker-compose 部署
+      # 使用 --no-deps 避免重启依赖容器（clickhouse 等）
+      # --------------------------------------------------------
       - name: Deploy to server
         run: |
+          # ========== 定义变量（在本地 shell 展开）==========
           IMAGE_TAG="${{ inputs.image_tag || 'latest' }}"
           COMPOSE_PATH="${{ secrets.COMPOSE_PATH || '/www/wwwroot/docker/sync-canal-go' }}"
           SERVER_HOST="${{ secrets.SERVER_HOST }}"
-          
+
+          # ========== 打印调试信息 ==========
           echo "=== Server: $SERVER_HOST ==="
           echo "=== Compose path: $COMPOSE_PATH ==="
           echo "=== Image tag: $IMAGE_TAG ==="
-          
+
+          # ========== SSH 到服务器执行命令 ==========
+          # 注意：<< EOF（不带引号）允许变量展开
+          # - 本地变量 ${VAR} 会在本地展开后传给远程
+          # - 远程变量 \$VAR 会在远程展开
           ssh -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            set -e
-            
+            # ↑ SSH 端口              ↑ SSH 用户名              ↑ 服务器 IP
+
+            set -e  # 任何命令失败立即退出
+
+            # 进入 docker-compose 所在目录
             cd ${COMPOSE_PATH}
-            
+
             echo "=== Current directory ==="
             pwd
-            
-            # 设置镜像标签环境变量
+
+            # 设置镜像标签环境变量（docker-compose-site.yml 中通过 ${SYNC_CANAL_TAG:-latest} 引用）
             export SYNC_CANAL_TAG=${IMAGE_TAG}
-            
+
             echo "=== Pulling new image ==="
+            # 拉取新镜像（\$SYNC_CANAL_TAG 在远程展开）
             docker pull registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:\$SYNC_CANAL_TAG
-            
+
             echo "=== Starting new container ==="
+            # 使用 docker-compose 启动服务
+            # -f docker-compose-site.yml: 指定 compose 文件
+            # up -d: 后台启动
+            # --no-deps: 不启动依赖服务（clickhouse、customer_pro 等不受影响）
+            # --force-recreate: 强制重建容器（即使配置没变）
             docker-compose -f docker-compose-site.yml up -d --no-deps --force-recreate sync-canal-go
-            
+
             echo "=== Waiting for container to start ==="
             sleep 5
-            
+
             echo "=== Health check ==="
+            # 检查容器是否正在运行
             if docker ps | grep -q sync-canal-go; then
               echo "✅ Container is running"
-              docker logs --tail 30 sync-canal-go
+              docker logs --tail 30 sync-canal-go  # 显示最近 30 行日志
             else
               echo "❌ Container failed to start"
               docker logs sync-canal-go
-              exit 1
+              exit 1  # 失败退出，触发 GitHub Actions 失败状态
             fi
           EOF
 
+      # --------------------------------------------------------
+      # Step 3: 验证部署（可选）
+      # --------------------------------------------------------
+      # 尝试访问健康检查接口，验证服务是否正常响应
+      # --------------------------------------------------------
       - name: Verify deployment
         run: |
-          sleep 10
-          curl -f https://${{ secrets.SERVER_HOST }}:8000/api/health || curl -f http://${{ secrets.SERVER_HOST }}:8000/ || echo "Health check skipped"
+          sleep 10  # 等待服务启动
+          # 尝试访问健康检查接口
+          curl -f https://${{ secrets.SERVER_HOST }}:8000/api/health || \
+          curl -f http://${{ secrets.SERVER_HOST }}:8000/ || \
+          echo "Health check skipped"  # 如果都失败，跳过（不影响部署结果）
