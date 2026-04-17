@@ -23,7 +23,7 @@ logs/
 public/uploads/
 gf
 lock.json
-*.sum
+# *.sum  # 已移除，go.sum 需要提交到仓库
 go.work
 data/logs
 other
