@@ -22,11 +22,11 @@ var (
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
 			a := service.App()
 
-			// 配置静态文件服务（前端 UI）
-			a.SetupStaticFiles()
-
-			// 初始化监控系统
+			// 初始化监控系统（先注册 API 路由，确保优先级高于静态文件路由）
 			a.InitMonitor(ctx)
+
+			// 配置静态文件服务（前端 UI，后注册以确保 API 路由优先）
+			a.SetupStaticFiles()
 
 			// 异步启动 Canal 同步服务
 			a.StartCanalSyncAsync()

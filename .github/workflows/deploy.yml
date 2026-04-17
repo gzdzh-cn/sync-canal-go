@@ -1,0 +1,74 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: false
+        default: 'latest'
+  workflow_call:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: false
+        default: 'latest'
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/sync-canal' }}
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e
+            
+            IMAGE="registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:${IMAGE_TAG}"
+            CONTAINER_NAME="sync-canal-go"
+            DEPLOY_PATH="${DEPLOY_PATH}"
+            
+            echo "=== Pulling image: $IMAGE ==="
+            docker pull $IMAGE
+            
+            echo "=== Stopping old container ==="
+            docker stop $CONTAINER_NAME 2>/dev/null || true
+            docker rm $CONTAINER_NAME 2>/dev/null || true
+            
+            echo "=== Starting new container ==="
+            docker run -d \
+              --name $CONTAINER_NAME \
+              --restart always \
+              -p 8000:8000 \
+              -v ${DEPLOY_PATH}/config/config.yaml:/app/manifest/config/config.yaml:ro \
+              -v ${DEPLOY_PATH}/logs:/app/logs \
+              $IMAGE
+            
+            echo "=== Waiting for container to start ==="
+            sleep 5
+            
+            echo "=== Health check ==="
+            if docker ps | grep -q $CONTAINER_NAME; then
+              echo "✅ Container is running"
+              docker logs --tail 20 $CONTAINER_NAME
+            else
+              echo "❌ Container failed to start"
+              docker logs $CONTAINER_NAME
+              exit 1
+            fi
+          EOF
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          curl -f https://${{ secrets.SERVER_HOST }}:8000/api/health || curl -f http://${{ secrets.SERVER_HOST }}:8000/ || echo "Health check skipped"

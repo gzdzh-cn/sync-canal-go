@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  sync-canal-go:
+    image: registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:latest
+    container_name: sync-canal-go
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      # 配置文件（必须先创建）
+      - ./config.yaml:/app/manifest/config/config.yaml:ro
+      # 日志目录
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# 如果需要同时部署依赖服务，可以取消注释以下内容
+# services:
+#   mysql:
+#     image: mysql:8.0
+#     ...
+#   
+#   clickhouse:
+#     image: clickhouse/clickhouse-server:latest
+#     ...
