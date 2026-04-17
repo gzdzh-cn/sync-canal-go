@@ -27,43 +27,42 @@ jobs:
           ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy to server
-        env:
-          IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/sync-canal' }}
         run: |
-          ssh -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          IMAGE_TAG="${{ inputs.image_tag || 'latest' }}"
+          DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/www/wwwroot/docker/sync-canal-go' }}"
+          
+          ssh -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             set -e
             
             IMAGE="registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:${IMAGE_TAG}"
             CONTAINER_NAME="sync-canal-go"
-            DEPLOY_PATH="${DEPLOY_PATH}"
             
-            echo "=== Pulling image: $IMAGE ==="
-            docker pull $IMAGE
+            echo "=== Pulling image: \$IMAGE ==="
+            docker pull \$IMAGE
             
             echo "=== Stopping old container ==="
-            docker stop $CONTAINER_NAME 2>/dev/null || true
-            docker rm $CONTAINER_NAME 2>/dev/null || true
+            docker stop \$CONTAINER_NAME 2>/dev/null || true
+            docker rm \$CONTAINER_NAME 2>/dev/null || true
             
             echo "=== Starting new container ==="
             docker run -d \
-              --name $CONTAINER_NAME \
+              --name \$CONTAINER_NAME \
               --restart always \
               -p 8000:8000 \
               -v ${DEPLOY_PATH}/config/config.yaml:/app/manifest/config/config.yaml:ro \
               -v ${DEPLOY_PATH}/logs:/app/logs \
-              $IMAGE
+              \$IMAGE
             
             echo "=== Waiting for container to start ==="
             sleep 5
             
             echo "=== Health check ==="
-            if docker ps | grep -q $CONTAINER_NAME; then
+            if docker ps | grep -q \$CONTAINER_NAME; then
               echo "✅ Container is running"
-              docker logs --tail 20 $CONTAINER_NAME
+              docker logs --tail 20 \$CONTAINER_NAME
             else
               echo "❌ Container failed to start"
-              docker logs $CONTAINER_NAME
+              docker logs \$CONTAINER_NAME
               exit 1
             fi
           EOF
