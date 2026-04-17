@@ -72,7 +72,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     volumes:
-      - ./docker-data/sync-canal-go/config:/app/config
+      - ./docker-data/sync-canal-go/config:/app/manifest/config
       - ./docker-data/sync-canal-go/logs:/app/logs
     ports:
       - 8000:8000      
