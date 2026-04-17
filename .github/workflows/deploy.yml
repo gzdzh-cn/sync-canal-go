@@ -30,6 +30,9 @@ jobs:
         run: |
           IMAGE_TAG="${{ inputs.image_tag || 'latest' }}"
           DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/www/wwwroot/docker/sync-canal-go' }}"
+          SERVER_HOST="${{ secrets.SERVER_HOST }}"
+          
+          echo "=== Server: $SERVER_HOST ==="
           
           ssh -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             set -e
@@ -38,12 +41,19 @@ jobs:
             CONTAINER_NAME="sync-canal-go"
             
             # 检测配置文件路径
+            echo "=== Checking config file ==="
+            ls -la ${DEPLOY_PATH}/ 2>/dev/null || echo "Directory ${DEPLOY_PATH}/ not found"
+            ls -la ${DEPLOY_PATH}/config/ 2>/dev/null || echo "Directory ${DEPLOY_PATH}/config/ not found"
+            
             if [ -f "${DEPLOY_PATH}/config/config.yaml" ]; then
               CONFIG_FILE="${DEPLOY_PATH}/config/config.yaml"
             elif [ -f "${DEPLOY_PATH}/config.yaml" ]; then
               CONFIG_FILE="${DEPLOY_PATH}/config.yaml"
             else
-              echo "❌ 配置文件不存在: ${DEPLOY_PATH}/config/config.yaml 或 ${DEPLOY_PATH}/config.yaml"
+              echo "❌ 配置文件不存在"
+              echo "   检查路径: ${DEPLOY_PATH}/config/config.yaml"
+              echo "   检查路径: ${DEPLOY_PATH}/config.yaml"
+              echo "   服务器: $SERVER_HOST"
               exit 1
             fi
             
