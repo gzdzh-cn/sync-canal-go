@@ -1,4 +1,4 @@
-package sync-canal-go/internal/packed
+package packed
 
 import "github.com/gogf/gf/v2/os/gres"
 
