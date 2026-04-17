@@ -29,61 +29,40 @@ jobs:
       - name: Deploy to server
         run: |
           IMAGE_TAG="${{ inputs.image_tag || 'latest' }}"
-          DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/www/wwwroot/docker/sync-canal-go' }}"
+          COMPOSE_PATH="${{ secrets.COMPOSE_PATH || '/www/wwwroot/docker/sync-canal-go' }}"
           SERVER_HOST="${{ secrets.SERVER_HOST }}"
           
           echo "=== Server: $SERVER_HOST ==="
+          echo "=== Compose path: $COMPOSE_PATH ==="
+          echo "=== Image tag: $IMAGE_TAG ==="
           
           ssh -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             set -e
             
-            IMAGE="registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:${IMAGE_TAG}"
-            CONTAINER_NAME="sync-canal-go"
+            cd ${COMPOSE_PATH}
             
-            # 检测配置文件路径
-            echo "=== Checking config file ==="
-            ls -la ${DEPLOY_PATH}/ 2>/dev/null || echo "Directory ${DEPLOY_PATH}/ not found"
-            ls -la ${DEPLOY_PATH}/config/ 2>/dev/null || echo "Directory ${DEPLOY_PATH}/config/ not found"
+            echo "=== Current directory ==="
+            pwd
             
-            if [ -f "${DEPLOY_PATH}/config/config.yaml" ]; then
-              CONFIG_FILE="${DEPLOY_PATH}/config/config.yaml"
-            elif [ -f "${DEPLOY_PATH}/config.yaml" ]; then
-              CONFIG_FILE="${DEPLOY_PATH}/config.yaml"
-            else
-              echo "❌ 配置文件不存在"
-              echo "   检查路径: ${DEPLOY_PATH}/config/config.yaml"
-              echo "   检查路径: ${DEPLOY_PATH}/config.yaml"
-              echo "   服务器: $SERVER_HOST"
-              exit 1
-            fi
+            # 设置镜像标签环境变量
+            export SYNC_CANAL_TAG=${IMAGE_TAG}
             
-            echo "=== Using config: \$CONFIG_FILE ==="
-            echo "=== Pulling image: \$IMAGE ==="
-            docker pull \$IMAGE
-            
-            echo "=== Stopping old container ==="
-            docker stop \$CONTAINER_NAME 2>/dev/null || true
-            docker rm \$CONTAINER_NAME 2>/dev/null || true
+            echo "=== Pulling new image ==="
+            docker pull registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:\$SYNC_CANAL_TAG
             
             echo "=== Starting new container ==="
-            docker run -d \
-              --name \$CONTAINER_NAME \
-              --restart always \
-              -p 8000:8000 \
-              -v \$CONFIG_FILE:/app/manifest/config/config.yaml:ro \
-              -v ${DEPLOY_PATH}/logs:/app/logs \
-              \$IMAGE
+            docker-compose -f docker-compose-site.yml up -d --no-deps --force-recreate sync-canal-go
             
             echo "=== Waiting for container to start ==="
             sleep 5
             
             echo "=== Health check ==="
-            if docker ps | grep -q \$CONTAINER_NAME; then
+            if docker ps | grep -q sync-canal-go; then
               echo "✅ Container is running"
-              docker logs --tail 20 \$CONTAINER_NAME
+              docker logs --tail 30 sync-canal-go
             else
               echo "❌ Container failed to start"
-              docker logs \$CONTAINER_NAME
+              docker logs sync-canal-go
               exit 1
             fi
           EOF
