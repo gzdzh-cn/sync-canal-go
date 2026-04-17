@@ -28,41 +28,20 @@ jobs:
         run: |
           mkdir -p release
           
-          # Platform matrix
-          PLATFORMS=(
-            "linux/amd64"
-            "linux/arm64"
-            "darwin/amd64"
-            "darwin/arm64"
-            "windows/amd64"
-            "windows/arm64"
-          )
+          # Platform: linux/amd64 only
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+            -ldflags="-s -w -X main.Version=${{ steps.version.outputs.version }}" \
+            -o "release/sync-canal-go" .
           
-          for PLATFORM in "${PLATFORMS[@]}"; do
-            IFS='/' read -r GOOS GOARCH <<< "$PLATFORM"
-            BINARY_NAME="sync-canal-go"
-            [ "$GOOS" = "windows" ] && BINARY_NAME="sync-canal-go.exe"
-            
-            echo "Building for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=0 go build \
-              -ldflags="-s -w -X main.Version=${{ steps.version.outputs.version }}" \
-              -o "release/${GOOS}_${GOARCH}/${BINARY_NAME}" .
-            
-            # Package
-            cd release
-            if [ "$GOOS" = "windows" ]; then
-              zip -r "sync-canal-go_${{ steps.version.outputs.version }}_${GOOS}_${GOARCH}.zip" "${GOOS}_${GOARCH}"
-            else
-              tar -czf "sync-canal-go_${{ steps.version.outputs.version }}_${GOOS}_${GOARCH}.tar.gz" "${GOOS}_${GOARCH}"
-            fi
-            rm -rf "${GOOS}_${GOARCH}"
-            cd ..
-          done
+          # Package
+          cd release
+          tar -czf "sync-canal-go_${{ steps.version.outputs.version }}_linux_amd64.tar.gz" sync-canal-go
+          rm sync-canal-go
 
       - name: Generate checksums
         run: |
           cd release
-          sha256sum *.tar.gz *.zip > checksums.txt
+          sha256sum *.tar.gz > checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -71,5 +50,4 @@ jobs:
           generate_release_notes: true
           files: |
             release/*.tar.gz
-            release/*.zip
             release/checksums.txt
