@@ -1,58 +1,137 @@
+# ============================================================
+# Docker Build & Push 工作流 - 构建并推送 Docker 镜像
+# ============================================================
+# 功能：
+#   1. 构建 Docker 镜像（linux/amd64 平台）
+#   2. 推送到阿里云镜像仓库
+#   3. 触发 deploy.yml 进行部署
+#
+# 触发方式：
+#   1. 推送到 main 分支 → 构建并推送 latest 标签，然后部署
+#   2. 打 tag（如 v1.0.0）→ 构建并推送版本标签，不自动部署
+#   3. 手动触发（GitHub Actions 页面）
+# ============================================================
+
 name: Docker Build & Push
 
 on:
+  # --------------------------------------------------------
+  # 触发条件
+  # --------------------------------------------------------
   push:
-    branches: [main]
-    tags: ['v*']
-  workflow_dispatch:
+    branches: [main]      # 推送到 main 分支时触发
+    tags: ['v*']          # 打 v 开头的 tag 时触发（如 v1.0.0, v2.1.0）
+  workflow_dispatch:      # 允许在 GitHub Actions 页面手动触发
 
+# --------------------------------------------------------
+# 权限配置
+# --------------------------------------------------------
+# contents: read  - 读取代码仓库内容
+# actions: write  - 触发其他工作流（用于调用 deploy.yml）
+# --------------------------------------------------------
 permissions:
   contents: read
   actions: write
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # 在 GitHub 托管的 Ubuntu 机器上运行
+
     steps:
+      # --------------------------------------------------------
+      # Step 1: 检出代码
+      # --------------------------------------------------------
+      # 将仓库代码拉取到 runner，后续构建基于此代码
+      # --------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
+      # --------------------------------------------------------
+      # Step 2: 设置 Docker Buildx
+      # --------------------------------------------------------
+      # Buildx 是 Docker 的扩展构建工具，支持：
+      #   - 多平台构建（linux/amd64, linux/arm64 等）
+      #   - 构建缓存（加速后续构建）
+      # --------------------------------------------------------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # --------------------------------------------------------
+      # Step 3: 登录阿里云镜像仓库
+      # --------------------------------------------------------
+      # 需要配置的 Secrets:
+      #   - ALIYUN_REGISTRY_USERNAME: 阿里云镜像仓库用户名
+      #   - ALIYUN_REGISTRY_PASSWORD: 阿里云镜像仓库密码
+      # 镜像仓库地址: registry.cn-heyuan.aliyuncs.com
+      # --------------------------------------------------------
       - name: Login to Aliyun Registry
         uses: docker/login-action@v3
         with:
-          registry: registry.cn-heyuan.aliyuncs.com
+          registry: registry.cn-heyuan.aliyuncs.com  # 阿里云镜像仓库地址
           username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
 
+      # --------------------------------------------------------
+      # Step 4: 提取版本元数据
+      # --------------------------------------------------------
+      # 根据触发方式决定镜像标签：
+      #   - 打 tag（如 v1.0.0）→ 使用 tag 名作为版本号
+      #   - 推送 main 分支 → 使用 "latest" 作为版本号
+      # 同时生成时间戳，用于创建唯一标签（便于回滚）
+      # --------------------------------------------------------
       - name: Extract metadata
         id: meta
         run: |
+          # 判断是否为 tag 触发
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            # 从 refs/tags/v1.0.0 中提取 v1.0.0
             VERSION=${GITHUB_REF#refs/tags/}
           else
+            # 非 tag 触发，使用 latest
             VERSION=latest
           fi
+          # 输出变量供后续步骤使用
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT  # Unix 时间戳
 
+      # --------------------------------------------------------
+      # Step 5: 构建并推送镜像
+      # --------------------------------------------------------
+      # 构建参数说明：
+      #   context: .          - 使用当前目录作为构建上下文
+      #   platforms:          - 目标平台（仅 linux/amd64）
+      #   push: true          - 构建后推送到镜像仓库
+      #   tags:               - 镜像标签（两个标签：版本号 + 版本号-时间戳）
+      #   cache-from/to       - 使用 GitHub Actions 缓存加速构建
+      #
+      # 生成的镜像标签示例：
+      #   - registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:latest
+      #   - registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:latest-1712345678
+      # --------------------------------------------------------
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          platforms: linux/amd64
-          push: true
+          context: .                    # 构建上下文：当前目录
+          platforms: linux/amd64        # 目标平台：仅 amd64
+          push: true                    # 推送到镜像仓库
           tags: |
             registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:${{ steps.meta.outputs.version }}
             registry.cn-heyuan.aliyuncs.com/gzdzh/sync-canal-go:${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.timestamp }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha          # 从 GitHub Actions 缓存读取
+          cache-to: type=gha,mode=max   # 保存完整缓存（加速后续构建）
 
+      # --------------------------------------------------------
+      # Step 6: 触发部署工作流
+      # --------------------------------------------------------
+      # 仅在推送到 main 分支时自动触发部署
+      # 打 tag 时不自动部署（需要手动触发 deploy.yml）
+      #
+      # 使用 benc-uk/workflow-dispatch 触发另一个工作流
+      # 传入 image_tag: "latest" 告诉 deploy.yml 使用哪个镜像标签
+      # --------------------------------------------------------
       - name: Trigger Deploy
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'  # 仅 main 分支触发
         uses: benc-uk/workflow-dispatch@v1
         with:
-          workflow: deploy.yml
-          inputs: '{"image_tag": "latest"}'
+          workflow: deploy.yml                 # 要触发的工作流
+          inputs: '{"image_tag": "latest"}'    # 传入参数：使用 latest 标签

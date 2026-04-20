@@ -1,3 +1,15 @@
+# ============================================================
+# Release 工作流 - 多平台二进制发布
+# ============================================================
+# 功能：
+#   1. 构建多平台二进制（linux/darwin/windows × amd64/arm64）
+#   2. 打包压缩包并生成 checksums
+#   3. 创建 GitHub Release 并上传文件
+#
+# 触发方式：
+#   推送 tag（如 v1.0.0）
+# ============================================================
+
 name: Release
 
 on:
@@ -11,38 +23,97 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # --------------------------------------------------------
+      # Step 1: 检出代码
+      # --------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
+      # --------------------------------------------------------
+      # Step 2: 设置 Go 环境
+      # --------------------------------------------------------
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: true
 
+      # --------------------------------------------------------
+      # Step 3: 提取版本号
+      # --------------------------------------------------------
       - name: Get version
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      # --------------------------------------------------------
+      # Step 4: 构建多平台二进制
+      # --------------------------------------------------------
+      # 构建目标：
+      #   - linux/amd64   (服务器部署主力)
+      #   - linux/arm64   (ARM 服务器)
+      #   - darwin/amd64  (macOS Intel)
+      #   - darwin/arm64  (macOS Apple Silicon)
+      #   - windows/amd64 (Windows)
+      #   - windows/arm64 (Windows ARM)
+      # --------------------------------------------------------
       - name: Build binaries
         run: |
+          VERSION=${{ steps.version.outputs.version }}
           mkdir -p release
-          
-          # Platform: linux/amd64 only
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
-            -ldflags="-s -w -X main.Version=${{ steps.version.outputs.version }}" \
-            -o "release/sync-canal-go" .
-          
-          # Package
-          cd release
-          tar -czf "sync-canal-go_${{ steps.version.outputs.version }}_linux_amd64.tar.gz" sync-canal-go
-          rm sync-canal-go
 
+          # 定义构建目标矩阵
+          TARGETS="
+            linux/amd64
+            linux/arm64
+            darwin/amd64
+            darwin/arm64
+            windows/amd64
+            windows/arm64
+          "
+
+          for TARGET in $TARGETS; do
+            GOOS=$(echo $TARGET | cut -d'/' -f1)
+            GOARCH=$(echo $TARGET | cut -d'/' -f2)
+
+            # Windows 可执行文件需要 .exe 后缀
+            if [ "$GOOS" = "windows" ]; then
+              BINARY="sync-canal-go.exe"
+            else
+              BINARY="sync-canal-go"
+            fi
+
+            echo "=== Building for $GOOS/$GOARCH ==="
+
+            # 构建
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags="-s -w -X main.Version=$VERSION" \
+              -o "release/$BINARY" .
+
+            # 打包
+            cd release
+            tar -czf "sync-canal-go_${VERSION}_${GOOS}_${GOARCH}.tar.gz" "$BINARY"
+            rm -f "$BINARY"
+            cd ..
+
+            echo "=== Built sync-canal-go_${VERSION}_${GOOS}_${GOARCH}.tar.gz ==="
+          done
+
+      # --------------------------------------------------------
+      # Step 5: 生成校验和
+      # --------------------------------------------------------
       - name: Generate checksums
         run: |
           cd release
           sha256sum *.tar.gz > checksums.txt
+          echo "=== Checksums ==="
+          cat checksums.txt
 
+      # --------------------------------------------------------
+      # Step 6: 创建 GitHub Release
+      # --------------------------------------------------------
+      # 使用 softprops/action-gh-release 自动创建 Release 并上传文件
+      # generate_release_notes: 自动生成变更日志（基于 commit 和 PR）
+      # --------------------------------------------------------
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:

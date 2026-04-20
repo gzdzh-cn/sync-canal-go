@@ -89,7 +89,7 @@ jobs:
             echo "=== Current directory ==="
             pwd
 
-            # 设置镜像标签环境变量（docker-compose-site.yml 中通过 ${SYNC_CANAL_TAG:-latest} 引用）
+            # 设置镜像标签环境变量（docker-compose.yml 中通过 ${SYNC_CANAL_TAG:-latest} 引用）
             export SYNC_CANAL_TAG=${IMAGE_TAG}
 
             echo "=== Pulling new image ==="
@@ -98,11 +98,11 @@ jobs:
 
             echo "=== Starting new container ==="
             # 使用 docker-compose 启动服务
-            # -f docker-compose-site.yml: 指定 compose 文件
+            # -f docker-compose.yml: 指定 compose 文件
             # up -d: 后台启动
             # --no-deps: 不启动依赖服务（clickhouse、customer_pro 等不受影响）
             # --force-recreate: 强制重建容器（即使配置没变）
-            docker-compose -f docker-compose-site.yml up -d --no-deps --force-recreate sync-canal-go
+            docker-compose -f docker-compose.yml up -d --no-deps --force-recreate sync-canal-go
 
             echo "=== Waiting for container to start ==="
             sleep 5
