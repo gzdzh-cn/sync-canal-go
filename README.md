@@ -260,8 +260,8 @@ clickhouse-client -h 127.0.0.1 --port 9000 -u default --password dzh123456
 
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS dzh3136_go;
-
--- 创建表（字段与 MySQL 一致，外加 _version）
+-- 创建这个表，是因为这个表是从 MySQL 同步过来的，所以要创建一个对应需要同步mysql的表一样字段的表
+-- 创建表（字段与 MySQL 一致，外加 _version），
 CREATE TABLE IF NOT EXISTS dzh3136_go.addons_customer_pro_clues (
     id String,
     createTime DateTime,
