@@ -36,6 +36,8 @@ permissions:
 jobs:
   docker:
     runs-on: ubuntu-latest  # 在 GitHub 托管的 Ubuntu 机器上运行
+    # 跳过 cicd 账号的提交触发
+    if: github.actor != 'cicd'
 
     steps:
       # --------------------------------------------------------

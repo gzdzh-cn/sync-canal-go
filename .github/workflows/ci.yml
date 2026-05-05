@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 跳过 cicd 账号的提交触发
+    if: github.actor != 'cicd'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
