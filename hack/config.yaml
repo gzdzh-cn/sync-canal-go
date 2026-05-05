@@ -6,7 +6,7 @@ gfcli:
     build: "-a amd64 -s linux -p temp -ew"
     tagPrefixes:
       - registry.cn-heyuan.aliyuncs.com/gzdzh
-    tagName: "sync-canal-go:v3.0.1"
+    tagName: "sync-canal-go:v3.0.3"
     push: true
   build:
     # 构建名称
@@ -16,7 +16,7 @@ gfcli:
     # 额外构建参数
     extra: ""
     # 包含静态资源
-    # packSrc: "resource"
+    packSrc: "resource"
     # 打包输出文件
     packDst: "internal/packed/packed.go"
     # 版本信息

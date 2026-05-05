@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/os/gcmd"
 
 	_ "sync-canal-go/internal/logic/app"
+	"sync-canal-go/internal/consts"
 	"sync-canal-go/internal/service"
 )
 
@@ -20,6 +21,9 @@ var (
 		Usage: "main",
 		Brief: "start mysql binlog sync service",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
+			// 打印版本号
+			g.Log().Infof(ctx, "Sync Canal Go Version: %s", consts.Version)
+
 			a := service.App()
 
 			// 初始化监控系统（先注册 API 路由，确保优先级高于静态文件路由）
